@@ -20,10 +20,20 @@ type Claims struct {
 
 // auth middleware validates the cognito jwt
 func Middleware() gin.HandlerFunc {
+	appEnv := os.Getenv("APP_ENV")
 	jwksURL := os.Getenv("COGNITO_JWKS_URL")
-	jwks, err := keyfunc.Get(jwksURL, keyfunc.Options{})
-	if err != nil {
-		logrus.Errorf("Failed to initialize JWKS from URL %s: %v", jwksURL, err)
+
+	// only initialize JWKS if we are NOT in dev mode
+	var jwks *keyfunc.JWKS
+	var err error
+	if appEnv != "dev" {
+		if jwksURL == "" {
+			logrus.Fatal("COGNITO_JWKS_URL is required in production mode")
+		}
+		jwks, err = keyfunc.Get(jwksURL, keyfunc.Options{})
+		if err != nil {
+			logrus.Errorf("Failed to initialize JWKS from URL %s: %v", jwksURL, err)
+		}
 	}
 
 	return func(c *gin.Context) {
@@ -40,20 +50,29 @@ func Middleware() gin.HandlerFunc {
 		}
 
 		tokenString := bearerToken[1]
+		var token *jwt.Token
+		var parseErr error
 
-		if jwks == nil {
-			// fail safe
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "auth configuration error"})
+		// bifurcation: dev vs prod validation
+		if appEnv == "dev" {
+			// dev mode: trust the token structure, ignore signature
+			token, _, parseErr = new(jwt.Parser).ParseUnverified(tokenString, &Claims{})
+		} else {
+			// prod mode: enforce checking against JWKS
+			if jwks == nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "auth configuration error"})
+				return
+			}
+			token, parseErr = jwt.ParseWithClaims(tokenString, &Claims{}, jwks.Keyfunc)
+		}
+
+		if parseErr != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token signature or format"})
 			return
 		}
 
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, jwks.Keyfunc)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token signature"})
-			return
-		}
-
-		if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		if claims, ok := token.Claims.(*Claims); ok {
+			// safe to use claims now
 			c.Set("user_sub", claims.Subject)
 			c.Set("user_email", claims.Email)
 
