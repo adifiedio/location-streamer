@@ -19,3 +19,6 @@ cover.out
 
 # Docker
 docker-compose.override.yml
+
+# binary files generated during development
+tenant
