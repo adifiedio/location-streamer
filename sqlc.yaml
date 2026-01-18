@@ -1,8 +1,7 @@
 version: "2"
-models:
-  - id: "pg"
-    engine: "postgresql"
-    schema: "sql/schema"
+sql:
+  - engine: "postgresql"
+    schema: "db/migration/001_initial_schema.up.sql"
     queries: "sql/queries"
     gen:
       go:
