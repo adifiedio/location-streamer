@@ -10,10 +10,19 @@ import (
 
 // connect initializes a connection pool to postgres
 func Connect(ctx context.Context) (*pgxpool.Pool, error) {
-	// fetching url from env or using default for local dev
+	// fetching url from env or building from individual vars
 	dbUrl := os.Getenv("DATABASE_URL")
 	if dbUrl == "" {
-		dbUrl = "postgres://user:password@localhost:5432/location_db?sslmode=disable"
+		// build from individual environment variables
+		host := getEnv("DB_HOST", "localhost")
+		port := getEnv("DB_PORT", "5432")
+		user := getEnv("DB_USER", "user")
+		password := getEnv("DB_PASSWORD", "password")
+		dbname := getEnv("DB_NAME", "location_db")
+		sslmode := getEnv("DB_SSLMODE", "disable")
+
+		dbUrl = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			user, password, host, port, dbname, sslmode)
 	}
 
 	config, err := pgxpool.ParseConfig(dbUrl)
@@ -32,4 +41,13 @@ func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 	}
 
 	return pool, nil
+}
+
+// getEnv gets an env vars or returns a default value
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

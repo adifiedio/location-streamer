@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -16,6 +17,10 @@ func NewProducer(brokers []string, topic string) *Producer {
 		Addr:     kafka.TCP(brokers...),
 		Topic:    topic,
 		Balancer: &kafka.LeastBytes{},
+		// add some logging for troubleshooting
+		ErrorLogger: kafka.LoggerFunc(func(s string, i ...interface{}) {
+			log.Printf("kafka producer error: "+s, i...)
+		}),
 	}
 	return &Producer{writer: writer}
 }
@@ -45,7 +50,7 @@ func NewConsumer(brokers []string, topic string, groupID string) *Consumer {
 		Brokers:  brokers,
 		Topic:    topic,
 		GroupID:  groupID,
-		MinBytes: 10e3, // 10KB
+		MinBytes: 1,    // 1 byte - process as soon as we have any data
 		MaxBytes: 10e6, // 10MB
 	})
 	return &Consumer{reader: reader}

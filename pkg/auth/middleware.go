@@ -55,8 +55,17 @@ func Middleware() gin.HandlerFunc {
 
 		// bifurcation: dev vs prod validation
 		if appEnv == "dev" {
-			// dev mode: trust the token structure, ignore signature
+			// dev mode: check if it's a valid JWT first
 			token, _, parseErr = new(jwt.Parser).ParseUnverified(tokenString, &Claims{})
+			if parseErr != nil {
+				// if not a valid JWT, let's treat it as a dummy token for local dev
+				logrus.Warnf("non-JWT token detected in dev mode, using dummy claims for: %s", tokenString)
+				c.Set("user_sub", tokenString)
+				c.Set("user_email", "dev@example.com")
+				c.Set("is_admin", true)
+				c.Next()
+				return
+			}
 		} else {
 			// prod mode: enforce checking against JWKS
 			if jwks == nil {

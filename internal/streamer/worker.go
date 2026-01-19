@@ -32,29 +32,37 @@ func (w *Worker) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			log.Println("streamer worker context done, shutting down")
 			return
 		default:
+			log.Println("waiting for next kafka message...")
 			// consume message
 			msg, err := w.consumer.Consume(ctx)
 			if err != nil {
 				log.Printf("error consuming message: %v", err)
 				continue
 			}
+			log.Printf("received message from kafka: key=%s, length=%d", string(msg.Key), len(msg.Value))
 
 			// parse data
 			var loc db.CreateLocationParams
 			if err := json.Unmarshal(msg.Value, &loc); err != nil {
-				log.Printf("error parsing message value: %v", err)
+				log.Printf("error parsing message value: %v, raw: %s", err, string(msg.Value))
 				continue
 			}
+			log.Printf("successfully parsed location: lat=%f, lng=%f", loc.Latitude, loc.Longitude)
 
 			// persist to database (use separate context to avoid canceling DB writes)
+			log.Printf("archiving location to db for tenant %v...", loc.TenantID)
 			if _, err := w.queries.CreateLocation(context.Background(), loc); err != nil {
 				log.Printf("error archiving location to db: %v", err)
 				// TODO: we can implement DLQ here
+			} else {
+				log.Println("successfully archived location to db")
 			}
 
 			// stream to 3rd party
+			log.Println("spawning goroutine for webhook stream...")
 			go w.processStream(loc)
 		}
 	}
