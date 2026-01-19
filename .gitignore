@@ -1,4 +1,4 @@
-# Binaries
+# binaries
 /bin/
 *.exe
 *.test
@@ -22,3 +22,5 @@ docker-compose.override.yml
 
 # binary files generated during development
 tenant
+ingestion
+streamer
