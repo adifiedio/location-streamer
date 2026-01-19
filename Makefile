@@ -42,11 +42,26 @@ run-ingestion:
 run-streamer:
 	APP_ENV=dev KAFKA_BROKER=localhost:9092 go run cmd/streamer/main.go
 
+docker-build:
+	docker compose build
+
 docker-up:
-	docker-compose up -d
+	docker compose up -d postgres zookeeper kafka
+
+docker-up-all:
+	docker compose up -d --build
+	@echo "Waiting for database to be ready (10s)..."
+	@sleep 10
+	@make migrateup
 
 docker-down:
-	docker-compose down
+	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+docker-restart:
+	docker compose restart tenant ingestion streamer
 
 DB_URL=postgres://user:password@localhost:5432/location_db?sslmode=disable
 

@@ -1,0 +1,31 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the binary
+# Build the binary with cache mounting
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux go build -p 2 -o /app/bin/ingestion ./cmd/ingestion/main.go
+
+# Runtime stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/bin/ingestion .
+
+# Expose port
+EXPOSE 8082
+
+# Run the binary
+CMD ["./ingestion"]
